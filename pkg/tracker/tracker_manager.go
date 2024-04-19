@@ -57,13 +57,35 @@ func (t *Tracker) prepareManager() {
 			Cur: math.MaxUint64,
 			Max: math.MaxUint64,
 		},
+
+		ActivatedProbes: []manager.ProbesSelector{
+			&manager.AllOf{
+				Selectors: []manager.ProbesSelector{
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "kprobe___sock_sendmsg",
+						},
+					},
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "kprobe_sock_recvmsg",
+						},
+					},
+					&manager.ProbeSelector{
+						ProbeIdentificationPair: manager.ProbeIdentificationPair{
+							EBPFFuncName: "kretprobe_sock_recvmsg",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	t.manager = &manager.Manager{
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe_sock_sendmsg",
+					EBPFFuncName: "kprobe___sock_sendmsg",
 				},
 			},
 			{

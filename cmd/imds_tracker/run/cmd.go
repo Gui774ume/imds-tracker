@@ -17,8 +17,6 @@ limitations under the License.
 package run
 
 import (
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/Gui774ume/imds-tracker/pkg/model"
@@ -58,6 +56,6 @@ func init() {
 	IMDSTracker.Flags().BoolVar(
 		&options.SendToDatadog,
 		"datadog",
-		len(os.Getenv("DD_API_KEY")) > 0,
+		true,
 		"when set, the tracker will send the captured events to Datadog. You can configure the log sender using environment variable (see https://docs.datadoghq.com/api/latest/logs).")
 }

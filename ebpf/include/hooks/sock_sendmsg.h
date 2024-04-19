@@ -12,8 +12,8 @@
 #include "helpers/process.h"
 #include "helpers/events.h"
 
-SEC("kprobe/sock_sendmsg")
-int BPF_KPROBE(kprobe_sock_sendmsg, struct socket *sock, struct msghdr *msg) {
+SEC("kprobe/__sock_sendmsg")
+int BPF_KPROBE(kprobe___sock_sendmsg, struct socket *sock, struct msghdr *msg) {
     // fetch destination address
     u32 daddr = 0;
     BPF_CORE_READ_INTO(&daddr, sock, sk, __sk_common.skc_daddr);

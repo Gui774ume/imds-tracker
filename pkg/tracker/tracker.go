@@ -256,7 +256,7 @@ func (t *Tracker) resolveStackTrace(evt *model.Event) error {
 		var err error
 		binary, err = t.fetchOrInsertTracedBinary(path.Join(t.options.HostProcPath, fmt.Sprintf("%d/exe", evt.Process.Pid)), evt.Process.Pid)
 		if err != nil || binary == nil {
-			return fmt.Errorf("couldnt' generate TracedBinary for pid %v: %v", evt.Process.Pid, err)
+			logrus.Errorf("couldnt' generate TracedBinary for pid %v: %v", evt.Process.Pid, err)
 		}
 	}
 
