@@ -20,8 +20,10 @@ import "github.com/sirupsen/logrus"
 
 // IMDSTrackerOptions are the options of the IMDS tracker
 type IMDSTrackerOptions struct {
-	LogLevel      logrus.Level
-	VMLinux       string
-	Unsafe        bool
-	SendToDatadog bool
+	LogLevel       logrus.Level
+	VMLinux        string
+	HostProcPath   string
+	UserStackTrace bool
+	Unsafe         bool
+	SendToDatadog  bool
 }

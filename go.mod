@@ -1,21 +1,21 @@
 module github.com/Gui774ume/imds-tracker
 
-go 1.20
+go 1.21.0
 
 require (
 	github.com/DataDog/btf-internals v0.0.0-20220510090419-14c22a91224c
 	github.com/DataDog/datadog-api-client-go/v2 v2.18.0
-	github.com/DataDog/ebpf-manager v0.3.4-0.20231013224149-5969c170dd70
+	github.com/DataDog/ebpf-manager v0.6.1-0.20240419124912-4c63ecca0e2f
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/acobaugh/osrelease v0.1.0
-	github.com/cilium/ebpf v0.12.0
+	github.com/cilium/ebpf v0.14.0
 	github.com/mailru/easyjson v0.7.7
 	github.com/sirupsen/logrus v1.9.3
 	github.com/smira/go-xz v0.1.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.19.0
 )
 
 require (

@@ -14,7 +14,7 @@
 
 #define MAX_IMDS_EVENT_SIZE 32*1024
 #define MAX_ANCESTORS_DEPTH 10
-#define MAX_PACKET_LENGTH (MAX_IMDS_EVENT_SIZE - sizeof(struct process_context_t)*MAX_ANCESTORS_DEPTH - sizeof(u64)*2 - sizeof(u32))
+#define MAX_PACKET_LENGTH (MAX_IMDS_EVENT_SIZE - sizeof(struct process_context_t)*MAX_ANCESTORS_DEPTH - sizeof(u64)*3 - sizeof(u32))
 
 struct packet_t {
     u32 size;
@@ -25,6 +25,8 @@ struct imds_event_t {
     struct process_context_t process[MAX_ANCESTORS_DEPTH];
     u64 network_direction;
     u64 timestamp;
+    u32 user_stack_id;
+    u32 padding;
     struct packet_t pkt;
 };
 

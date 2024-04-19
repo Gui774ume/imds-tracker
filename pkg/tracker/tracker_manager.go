@@ -90,6 +90,11 @@ func (t *Tracker) selectMaps() error {
 	if err != nil {
 		return fmt.Errorf("couldn't instantiate a new ring buffer reader: %w", err)
 	}
+
+	t.stackTraceMap, _, err = t.manager.GetMap("stack_traces")
+	if err != nil || t.stackTraceMap == nil {
+		return fmt.Errorf("couldn't find \"stack_trace\" map")
+	}
 	return nil
 }
 

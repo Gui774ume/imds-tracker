@@ -17,5 +17,6 @@ struct {
 } events SEC(".maps");
 
 BPF_HASH_MAP(sock_recvmsg_context, u32, struct sock_recvmsg_context_t, 4096)
+BPF_STACK_TRACE_MAP(stack_traces, 127, 1000) // PERF_MAX_STACK_DEPTH = 127
 
 #endif

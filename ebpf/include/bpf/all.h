@@ -20,7 +20,6 @@
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include "bpf_map_defs.h"
-#include <errno.h>
 
 #pragma clang diagnostic pop
 

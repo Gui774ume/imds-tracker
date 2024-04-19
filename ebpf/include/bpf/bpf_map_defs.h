@@ -19,6 +19,9 @@
         __uint(map_flags, _map_flags);                                               \
     } _name SEC(".maps");
 
+#define BPF_STACK_TRACE_MAP(name, stack_len, max_entries) \
+    BPF_MAP(name, BPF_MAP_TYPE_STACK_TRACE, u32, u64[stack_len], max_entries, 0, 0)
+
 #define BPF_PERF_EVENT_ARRAY_MAP_PINNED(name, value_type, max_entries) \
     BPF_MAP(name, BPF_MAP_TYPE_PERF_EVENT_ARRAY, u32, value_type, max_entries, 1, 0)
 

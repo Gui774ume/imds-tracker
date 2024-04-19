@@ -33,6 +33,7 @@ type IMDSTrackerOptionsSanitizer struct {
 // NewIMDSTrackerOptionsSanitizer creates a new instance of KRIEOptionsSanitizer
 func NewIMDSTrackerOptionsSanitizer(options *model.IMDSTrackerOptions, field string) *IMDSTrackerOptionsSanitizer {
 	options.LogLevel = logrus.InfoLevel
+	options.HostProcPath = "/proc"
 	return &IMDSTrackerOptionsSanitizer{
 		options: options,
 		field:   field,
@@ -45,6 +46,8 @@ func (itos *IMDSTrackerOptionsSanitizer) String() string {
 		return itos.options.LogLevel.String()
 	case "vmlinux":
 		return itos.options.VMLinux
+	case "proc":
+		return itos.options.HostProcPath
 	default:
 		return ""
 	}
@@ -69,6 +72,11 @@ func (itos *IMDSTrackerOptionsSanitizer) Set(val string) error {
 			return fmt.Errorf("empty path to \"vmlinux\"")
 		}
 		itos.options.VMLinux = val
+	case "proc":
+		if len(val) == 0 {
+			return fmt.Errorf("empty path to \"proc\"")
+		}
+		itos.options.HostProcPath = val
 	default:
 		return nil
 	}
@@ -80,6 +88,8 @@ func (itos *IMDSTrackerOptionsSanitizer) Type() string {
 	case "log-level":
 		return "string"
 	case "vmlinux":
+		return "string"
+	case "proc":
 		return "string"
 	default:
 		return ""

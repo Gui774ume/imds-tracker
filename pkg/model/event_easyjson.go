@@ -127,6 +127,31 @@ func easyjsonF642ad3eDecodeGithubComGui774umeImdsTrackerPkgModel1(in *jlexer.Lex
 			if data := in.Raw(); in.Ok() {
 				in.AddError((out.Timestamp).UnmarshalJSON(data))
 			}
+		case "user_stack_id":
+			out.UserStackID = uint32(in.Uint32())
+		case "stack_trace":
+			if in.IsNull() {
+				in.Skip()
+				out.UserStackTrace = nil
+			} else {
+				in.Delim('[')
+				if out.UserStackTrace == nil {
+					if !in.IsDelim(']') {
+						out.UserStackTrace = make([]string, 0, 4)
+					} else {
+						out.UserStackTrace = []string{}
+					}
+				} else {
+					out.UserStackTrace = (out.UserStackTrace)[:0]
+				}
+				for !in.IsDelim(']') {
+					var v5 string
+					v5 = string(in.String())
+					out.UserStackTrace = append(out.UserStackTrace, v5)
+					in.WantComma()
+				}
+				in.Delim(']')
+			}
 		case "packet":
 			(out.Packet).UnmarshalEasyJSON(in)
 		default:
@@ -162,6 +187,27 @@ func easyjsonF642ad3eEncodeGithubComGui774umeImdsTrackerPkgModel1(out *jwriter.W
 		const prefix string = ",\"timestamp\":"
 		out.RawString(prefix)
 		out.Raw((in.Timestamp).MarshalJSON())
+	}
+	{
+		const prefix string = ",\"user_stack_id\":"
+		out.RawString(prefix)
+		out.Uint32(uint32(in.UserStackID))
+	}
+	{
+		const prefix string = ",\"stack_trace\":"
+		out.RawString(prefix)
+		if in.UserStackTrace == nil && (out.Flags&jwriter.NilSliceAsEmpty) == 0 {
+			out.RawString("null")
+		} else {
+			out.RawByte('[')
+			for v6, v7 := range in.UserStackTrace {
+				if v6 > 0 {
+					out.RawByte(',')
+				}
+				out.String(string(v7))
+			}
+			out.RawByte(']')
+		}
 	}
 	{
 		const prefix string = ",\"packet\":"

@@ -41,11 +41,20 @@ func init() {
 		NewIMDSTrackerOptionsSanitizer(&options, "vmlinux"),
 		"vmlinux",
 		"path to a \"vmlinux\" file on the system (this path should be provided only if imds-tracker can't find it by itself)")
+	IMDSTracker.Flags().Var(
+		NewIMDSTrackerOptionsSanitizer(&options, "proc"),
+		"proc",
+		"path to the host proc directory (default is /proc)")
 	IMDSTracker.Flags().BoolVar(
 		&options.Unsafe,
 		"unsafe",
 		false,
 		"when set, the tracker will send the entire response body of all IMDS requests instead of simply the fields known to be free of secrets or credentials.")
+	IMDSTracker.Flags().BoolVar(
+		&options.UserStackTrace,
+		"user-stack-trace",
+		false,
+		"when set, the tracker capture the user space stack trace of the service that made the call or received the answer (will require more memory).")
 	IMDSTracker.Flags().BoolVar(
 		&options.SendToDatadog,
 		"datadog",

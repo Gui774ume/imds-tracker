@@ -19,6 +19,7 @@ limitations under the License.
 package model
 
 import (
+	"debug/elf"
 	"fmt"
 	"time"
 
@@ -52,6 +53,39 @@ func (nd NetworkDirection) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("\"%s\"", nd)), nil
 }
 
+// SymbolAddr is the address of a symbol
+type SymbolAddr uint64
+
+// BinaryCookie is a unique identifier used to select a TracedBinary
+type BinaryCookie uint32
+
+type TracedBinary struct {
+	Path         string
+	ResolvedPath string
+	Inode        uint64
+	Size         int64
+	Cookie       BinaryCookie
+	Pids         []int
+
+	SymbolsCache map[SymbolAddr]elf.Symbol
+	File         *elf.File
+}
+
+type TracedSymbol struct {
+	Symbol elf.Symbol
+	Binary *TracedBinary
+}
+
+// StackTraceNode represents a node of a stack trace
+type StackTraceNode struct {
+	Offset SymbolAddr
+	Symbol elf.Symbol
+}
+
+func (stn StackTraceNode) String() string {
+	return fmt.Sprintf("(0x%x) %s", stn.Offset, stn.Symbol.Name)
+}
+
 // Event is used to parse an IMDS event
 // easyjson:json
 type Event struct {
@@ -59,7 +93,12 @@ type Event struct {
 	Ancestors        ProcessList      `json:"ancestors"`
 	NetworkDirection NetworkDirection `json:"network_direction"`
 	Timestamp        time.Time        `json:"timestamp"`
-	Packet           IMDSPacket       `json:"packet"`
+
+	UserStackID       uint32       `json:"user_stack_id"`
+	UserStackTraceRaw []SymbolAddr `json:"-"`
+	UserStackTrace    []string     `json:"stack_trace"`
+
+	Packet IMDSPacket `json:"packet"`
 }
 
 func (ie *Event) UnmarshalBinary(data []byte, resolver *resolver.TimeResolver, unsafe bool) (int, error) {
@@ -82,13 +121,15 @@ func (ie *Event) UnmarshalBinary(data []byte, resolver *resolver.TimeResolver, u
 		cursor += read
 	}
 
-	if len(data[cursor:]) < 16 {
+	if len(data[cursor:]) < 24 {
 		return 0, fmt.Errorf("parsing Event: got len %d, needed %d: %w", len(data[cursor:]), 16, ErrNotEnoughData)
 	}
 
 	ie.NetworkDirection = NetworkDirection(ByteOrder.Uint64(data[cursor : cursor+8]))
 	ie.Timestamp = resolver.ResolveMonotonicTimestamp(ByteOrder.Uint64(data[cursor+8 : cursor+16]))
-	cursor += 16
+	ie.UserStackID = ByteOrder.Uint32(data[cursor+16 : cursor+20])
+	// padding: 4 bytes
+	cursor += 24
 
 	read, err = ie.Packet.UnmarshalBinary(data[cursor:], unsafe)
 	if err != nil {

@@ -81,6 +81,7 @@ int BPF_KRETPROBE(kretprobe_sock_recvmsg, int ret) {
     fill_process_context(&event->process[0], event);
 
     // send event
+    event->user_stack_id = bpf_get_stackid(ctx, &stack_traces, BPF_F_FAST_STACK_CMP | BPF_F_USER_STACK | BPF_F_REUSE_STACKID);
     send_event(event, (MAX_IMDS_EVENT_SIZE - MAX_PACKET_LENGTH + event->pkt.size) & (MAX_IMDS_EVENT_SIZE - 1));
     return 0;
 }

@@ -19,12 +19,17 @@ package tracker
 import (
 	"bytes"
 	"context"
+	"debug/elf"
 	"fmt"
-	"sync"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/sirupsen/logrus"
+	"math/rand"
+	"os"
+	"path"
+	"sync"
+	"syscall"
 
 	"github.com/Gui774ume/imds-tracker/ebpf/assets"
 	"github.com/Gui774ume/imds-tracker/pkg/log"
@@ -34,8 +39,14 @@ import (
 
 // Tracker is the main structure used to instantiate an eBPF IMDS tracker
 type Tracker struct {
-	options        *model.IMDSTrackerOptions
-	manager        *manager.Manager
+	options       *model.IMDSTrackerOptions
+	manager       *manager.Manager
+	stackTraceMap *ebpf.Map
+
+	// TracedBinaries is the list of userspace binaries for which we are collecting stack traces
+	PidsToCookie   map[int]model.BinaryCookie
+	TracedBinaries map[model.BinaryCookie]*model.TracedBinary
+
 	managerOptions manager.Options
 	wg             *sync.WaitGroup
 	ctx            context.Context
@@ -51,9 +62,11 @@ type Tracker struct {
 func NewTracker(options *model.IMDSTrackerOptions) (*Tracker, error) {
 	var err error
 	t := &Tracker{
-		options: options,
-		wg:      &sync.WaitGroup{},
-		evt:     &model.Event{},
+		options:        options,
+		wg:             &sync.WaitGroup{},
+		evt:            &model.Event{},
+		PidsToCookie:   make(map[int]model.BinaryCookie),
+		TracedBinaries: make(map[model.BinaryCookie]*model.TracedBinary),
 	}
 
 	t.timeResolver, err = resolver.NewTimeResolver()
@@ -136,6 +149,128 @@ func (t *Tracker) resetEvent() *model.Event {
 	return t.evt
 }
 
+func (t *Tracker) fetchOrInsertTracedBinary(path string, pid int) (*model.TracedBinary, error) {
+	// check if this pid has been seen before
+	if cookie, ok := t.PidsToCookie[pid]; ok {
+		if entry, ok := t.TracedBinaries[cookie]; ok {
+			return entry, nil
+		}
+	}
+
+	// fetch the binary file inode
+	fileinfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("couldn't load %s: %v", path, err)
+	}
+
+	resolvedPath, err := os.Readlink(path)
+	if err != nil {
+		resolvedPath = ""
+	}
+
+	stat, ok := fileinfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return nil, fmt.Errorf("couldn't load %s: %v", path, err)
+	}
+
+	// check if the file has been seen before
+	for _, tracedBinary := range t.TracedBinaries {
+		// an inode conflict is technically possible between multiple mount points, but checking the binary size and
+		// the inode makes it relatively unlikely, and is less overkill than hashing the file. (we don't want to check
+		// the path, or even the resolved paths because of hard link collisions)
+		if stat.Ino == tracedBinary.Inode && stat.Size == tracedBinary.Size {
+			// if a pid is provided, this means that we filter the events from this binary by pid, add it to the list
+			if pid != 0 {
+				tracedBinary.Pids = append(tracedBinary.Pids, pid)
+			}
+			t.PidsToCookie[pid] = tracedBinary.Cookie
+			return tracedBinary, nil
+		}
+	}
+
+	// if we reach this point, this is a new entry, add it to the list and generate a cookie
+	cookie := rand.Uint32()
+	for _, ok = t.TracedBinaries[model.BinaryCookie(cookie)]; ok; {
+		cookie = rand.Uint32()
+	}
+	entry := model.TracedBinary{
+		Path:         path,
+		ResolvedPath: resolvedPath,
+		Inode:        stat.Ino,
+		Size:         stat.Size,
+		Cookie:       model.BinaryCookie(cookie),
+		SymbolsCache: make(map[model.SymbolAddr]elf.Symbol),
+	}
+	if pid > 0 {
+		entry.Pids = []int{pid}
+	}
+
+	// fetch the list of symbols of the binary
+	f, syms, err := manager.OpenAndListSymbols(entry.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	entry.File = f
+	for _, sym := range syms {
+		entry.SymbolsCache[model.SymbolAddr(sym.Value)] = sym
+	}
+
+	t.TracedBinaries[entry.Cookie] = &entry
+	t.PidsToCookie[pid] = entry.Cookie
+	return &entry, nil
+}
+
+var (
+	// SymbolNotFound is used to notify that a symbol could not be resolved
+	SymbolNotFound = elf.Symbol{Name: "[symbol_not_found]"}
+)
+
+// ResolveUserSymbolAndOffset returns the symbol of the function in which a given address lives, as well as the offset
+// inside that function
+func (t *Tracker) ResolveUserSymbolAndOffset(address model.SymbolAddr, binary *model.TracedBinary) model.StackTraceNode {
+	if binary != nil {
+		for symbolAddr, symbol := range binary.SymbolsCache {
+			if address >= symbolAddr && address < symbolAddr+model.SymbolAddr(symbol.Size) {
+				return model.StackTraceNode{
+					Symbol: symbol,
+					Offset: address - symbolAddr,
+				}
+			}
+		}
+	}
+
+	return model.StackTraceNode{
+		Symbol: SymbolNotFound,
+		Offset: address,
+	}
+}
+
+func (t *Tracker) resolveStackTrace(evt *model.Event) error {
+	var binary *model.TracedBinary
+	cookie, ok := t.PidsToCookie[evt.Process.Pid]
+	if ok {
+		binary = t.TracedBinaries[cookie]
+	}
+	if binary == nil {
+		var err error
+		binary, err = t.fetchOrInsertTracedBinary(path.Join(t.options.HostProcPath, fmt.Sprintf("%d/exe", evt.Process.Pid)), evt.Process.Pid)
+		if err != nil || binary == nil {
+			return fmt.Errorf("couldnt' generate TracedBinary for pid %v: %v", evt.Process.Pid, err)
+		}
+	}
+
+	// resolve user stack trace
+	for _, addr := range evt.UserStackTraceRaw {
+		if addr == 0 {
+			break
+		}
+		evt.UserStackTrace = append(evt.UserStackTrace, t.ResolveUserSymbolAndOffset(addr, binary).String())
+	}
+
+	return nil
+}
+
 func (t *Tracker) handleEvent(data []byte) {
 	evt := t.resetEvent()
 	_, err := evt.UnmarshalBinary(data, t.timeResolver, t.options.Unsafe)
@@ -144,7 +279,22 @@ func (t *Tracker) handleEvent(data []byte) {
 		return
 	}
 
-	logrus.Debugf("Captured 1 [IMDS%s] %s on %s from %s(%d)", evt.Packet.IMDSVersion(), evt.Packet.PacketType, evt.NetworkDirection, evt.Process.Comm, evt.Process.Pid)
+	// resolve stack trace
+	if t.options.UserStackTrace {
+		evt.UserStackTraceRaw = make([]model.SymbolAddr, 127)
+		if evt.UserStackID > 0 {
+			if err = t.stackTraceMap.Lookup(evt.UserStackID, evt.UserStackTraceRaw); err != nil {
+				logrus.Errorf("couldn't look up stack trace %v: %v", evt.UserStackID, err)
+			} else {
+				// resolve binary
+				if err = t.resolveStackTrace(evt); err != nil {
+					logrus.Errorf("couldn't resolve stack trace for pid %d comm %s: %v", evt.Process.Pid, evt.Process.Comm, err)
+				}
+			}
+		}
+	}
+
+	logrus.Debugf("Captured 1 [IMDS%s] %s on %s from %s(%d) - stack trace:\n%v", evt.Packet.IMDSVersion(), evt.Packet.PacketType, evt.NetworkDirection, evt.Process.Comm, evt.Process.Pid, evt.UserStackTrace)
 
 	if t.sender != nil {
 		if err = t.sender.Send(evt); err != nil {
