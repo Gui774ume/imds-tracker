@@ -30,19 +30,26 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	AWSCloudProvider   = "aws"
+	GCPCloudProvider   = "gcp"
+	AzureCloudProvider = "azure"
+)
+
 // IMDSPacket is used to parse an IMDS packet
 // easyjson:json
 type IMDSPacket struct {
 	Size int    `json:"size"`
 	Data []byte `json:"-"`
 
-	PacketType string           `json:"packet_type"`
-	IsIMDSV2   bool             `json:"is_imds_v2"`
-	URL        string           `json:"url,omitempty"`
-	Host       string           `json:"host,omitempty"`
-	UserAgent  string           `json:"user_agent,omitempty"`
-	Server     string           `json:"server,omitempty"`
-	Body       IMDSResponseBody `json:"body,omitempty"`
+	PacketType    string           `json:"packet_type"`
+	CloudProvider string           `json:"cloud_provider"`
+	IsIMDSV2      bool             `json:"is_imds_v2"`
+	URL           string           `json:"url,omitempty"`
+	Host          string           `json:"host,omitempty"`
+	UserAgent     string           `json:"user_agent,omitempty"`
+	Server        string           `json:"server,omitempty"`
+	Body          IMDSResponseBody `json:"body,omitempty"`
 }
 
 // IMDSVersion returns the IMDS version of the
@@ -91,6 +98,15 @@ func (p *IMDSPacket) UnmarshalBinary(data []byte, unsafe bool) (int, error) {
 			// check if this is an IMDS V2 request
 			p.IsIMDSV2 = len(req.Header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
 				len(req.Header.Get("x-aws-ec2-metadata-token")) > 0
+
+			// set the cloud provider
+			if flavor := req.Header.Get("Metadata-Flavor"); flavor == "Google" {
+				p.CloudProvider = GCPCloudProvider
+			} else if metadata := req.Header.Get("Metadata"); metadata == "true" {
+				p.CloudProvider = AzureCloudProvider
+			} else {
+				p.CloudProvider = AWSCloudProvider
+			}
 		}
 
 		// extract other interesting fields
@@ -113,6 +129,15 @@ func (p *IMDSPacket) UnmarshalBinary(data []byte, unsafe bool) (int, error) {
 
 			// extract other interesting fields
 			p.Server = resp.Header.Get("server")
+
+			// set the cloud provider
+			if flavor := resp.Header.Get("Metadata-Flavor"); flavor == "Google" {
+				p.CloudProvider = GCPCloudProvider
+			} else if metadata := resp.Header.Get("Metadata"); metadata == "true" {
+				p.CloudProvider = AzureCloudProvider
+			} else {
+				p.CloudProvider = AWSCloudProvider
+			}
 		}
 
 		// read body

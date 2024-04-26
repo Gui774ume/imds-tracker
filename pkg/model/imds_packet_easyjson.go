@@ -40,6 +40,8 @@ func easyjson2bba4802DecodeGithubComGui774umeImdsTrackerPkgModel(in *jlexer.Lexe
 			out.Size = int(in.Int())
 		case "packet_type":
 			out.PacketType = string(in.String())
+		case "cloud_provider":
+			out.CloudProvider = string(in.String())
 		case "is_imds_v2":
 			out.IsIMDSV2 = bool(in.Bool())
 		case "url":
@@ -75,6 +77,11 @@ func easyjson2bba4802EncodeGithubComGui774umeImdsTrackerPkgModel(out *jwriter.Wr
 		const prefix string = ",\"packet_type\":"
 		out.RawString(prefix)
 		out.String(string(in.PacketType))
+	}
+	{
+		const prefix string = ",\"cloud_provider\":"
+		out.RawString(prefix)
+		out.String(string(in.CloudProvider))
 	}
 	{
 		const prefix string = ",\"is_imds_v2\":"
